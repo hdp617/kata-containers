@@ -1,0 +1,41 @@
+steps:
+  # Step 1: Install dependencies and build the static Kata artifacts payload
+  - name: 'ubuntu:22.04'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        apt-get update && apt-get install -y make curl git docker.io sudo zstd
+        cd tools/packaging/kata-deploy/local-build
+        # Run make to generate all static binaries and merge them into kata-static.tar.zst
+        make kata-tarball
+    env:
+      - 'USER=root' # Required by kata-deploy-binaries-in-docker.sh
+      - 'DOCKER_API_VERSION=1.41' # Compatibility with Cloud Build Docker daemon
+
+  # Step 2: Stage the payload and build the kata-deploy Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Stage the built payload to where the Dockerfile expects it
+        cp tools/packaging/kata-deploy/local-build/kata-static.tar.zst tools/packaging/kata-deploy/kata-static.tar.zst
+        
+        # Build the Docker image using Buildx from the repository root
+        docker buildx build \
+          --platform linux/amd64 \
+          --provenance false --sbom false \
+          -f tools/packaging/kata-deploy/Dockerfile \
+          -t us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:$BUILD_ID \
+          -t us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:latest \
+          .
+
+# Automatically push images to GCP Artifact Registry
+images:
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:$BUILD_ID'
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:latest'
+
+options:
+  # Compiling Linux kernel, QEMU, and Rust binaries requires significant compute resources
+  machineType: 'E2_HIGHCPU_32'

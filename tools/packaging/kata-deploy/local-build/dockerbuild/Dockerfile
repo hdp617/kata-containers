@@ -83,4 +83,5 @@ RUN if [ "${ARCH}" != "$(uname -m)" ] && [ "${ARCH}" == "s390x" ]; then \
         make CROSS_COMPILE=s390x-linux-gnu- && popd && make install && popd || return; fi
 
 ENV USER ${IMG_USER}
+ENV DOCKER_API_VERSION=1.41
 USER ${IMG_USER}

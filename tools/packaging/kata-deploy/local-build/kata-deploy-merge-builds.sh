@@ -17,8 +17,9 @@ kata_build_dir=${1:-build}
 kata_versions_yaml_file=${2:-""}
 output_tarball_name=${3:-kata-static.tar.zst}
 
-tar_path="${PWD}/${output_tarball_name}"
-kata_versions_yaml_file_path="${PWD}/${kata_versions_yaml_file}"
+tar_path=$(readlink -f "${output_tarball_name}")
+kata_versions_yaml_file_path=""
+[[ -n "${kata_versions_yaml_file}" ]] && kata_versions_yaml_file_path=$(readlink -f "${kata_versions_yaml_file}")
 
 pushd "${kata_build_dir}"
 tarball_content_dir="${PWD}/kata-tarball-content"
