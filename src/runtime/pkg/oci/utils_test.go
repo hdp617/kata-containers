@@ -1461,3 +1461,70 @@ func TestNewMount(t *testing.T) {
 		assert.Equal(tt.out.ReadOnly, actualMount.ReadOnly, "unexpected mount ReadOnly")
 	}
 }
+
+func TestSandboxConfigStaticResourceMgmt(t *testing.T) {
+	assert := assert.New(t)
+
+	bundleDir := t.TempDir()
+	configPath := filepath.Join(bundleDir, "config.json")
+	err := os.WriteFile(configPath, []byte(minimalConfig), fileMode)
+	assert.NoError(err)
+
+	spec, err := compatoci.ParseConfigJSON(bundleDir)
+	assert.NoError(err)
+
+	testCases := []struct {
+		name         string
+		defaultCPUs  float32
+		defaultMem   uint32
+		sandboxCPUs  float32
+		sandboxMem   uint32
+		expectedCPUs float32
+		expectedMem  uint32
+	}{
+		{
+			name:         "sizing floor baseline",
+			defaultCPUs:  1,
+			defaultMem:   2048,
+			sandboxCPUs:  2,
+			sandboxMem:   2048,
+			expectedCPUs: 2,
+			expectedMem:  2048,
+		},
+		{
+			name:         "workload exceeds defaults",
+			defaultCPUs:  1,
+			defaultMem:   2048,
+			sandboxCPUs:  4,
+			sandboxMem:   4096,
+			expectedCPUs: 4,
+			expectedMem:  4096,
+		},
+		{
+			name:         "workload is less than defaults",
+			defaultCPUs:  2,
+			defaultMem:   2048,
+			sandboxCPUs:  1,
+			sandboxMem:   1024,
+			expectedCPUs: 2,
+			expectedMem:  2048,
+		},
+	}
+
+	for _, tc := range testCases {
+		runtimeConfig := RuntimeConfig{
+			HypervisorType:            vc.QemuHypervisor,
+			StaticSandboxResourceMgmt: true,
+			SandboxCPUs:               tc.sandboxCPUs,
+			SandboxMemMB:              tc.sandboxMem,
+		}
+		runtimeConfig.HypervisorConfig.NumVCPUsF = tc.defaultCPUs
+		runtimeConfig.HypervisorConfig.MemorySize = tc.defaultMem
+
+		sandboxConfig, err := SandboxConfig(spec, runtimeConfig, bundleDir, containerID, false, true)
+		assert.NoError(err, tc.name)
+
+		assert.Equal(tc.expectedCPUs, sandboxConfig.HypervisorConfig.NumVCPUsF, tc.name)
+		assert.Equal(tc.expectedMem, sandboxConfig.HypervisorConfig.MemorySize, tc.name)
+	}
+}

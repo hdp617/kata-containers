@@ -1386,6 +1386,98 @@ func TestSandboxUpdateResources(t *testing.T) {
 	assert.Equal(t, s.hypervisor.HypervisorConfig().MemSlots, uint32(3))
 }
 
+func TestSandboxUpdateResourcesStaticResourceMgmt(t *testing.T) {
+	tests := []struct {
+		name                string
+		defaultMemorySize   uint32
+		workloadMemoryLimit int64
+		defaultCPUs         float32
+		workloadCPUPeriod   uint64
+		workloadCPUQuota    int64
+		expectedMemorySize  uint32
+		expectedCPUs        float32
+	}{
+		{
+			name:                "baseline static sizing",
+			defaultMemorySize:   4096,
+			workloadMemoryLimit: 1024 * 1024 * 1024, // 1GB
+			defaultCPUs:         4.0,
+			workloadCPUPeriod:   1000,
+			workloadCPUQuota:    2000, // 2 CPUs
+			expectedMemorySize:  4096,
+			expectedCPUs:        4.0,
+		},
+		{
+			name:                "large workload limits ignored",
+			defaultMemorySize:   4096,
+			workloadMemoryLimit: 8192 * 1024 * 1024, // 8GB
+			defaultCPUs:         4.0,
+			workloadCPUPeriod:   1000,
+			workloadCPUQuota:    8000, // 8 CPUs
+			expectedMemorySize:  4096,
+			expectedCPUs:        4.0,
+		},
+		{
+			name:                "no workload limits",
+			defaultMemorySize:   2048,
+			workloadMemoryLimit: 0,
+			defaultCPUs:         2.0,
+			workloadCPUPeriod:   0,
+			workloadCPUQuota:    0,
+			expectedMemorySize:  2048,
+			expectedCPUs:        2.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hConfig := HypervisorConfig{
+				MemorySize: tt.defaultMemorySize,
+				NumVCPUsF:  tt.defaultCPUs,
+			}
+
+			var memory *specs.LinuxMemory
+			if tt.workloadMemoryLimit > 0 {
+				memory = &specs.LinuxMemory{
+					Limit: &tt.workloadMemoryLimit,
+				}
+			}
+
+			var cpu *specs.LinuxCPU
+			if tt.workloadCPUPeriod > 0 && tt.workloadCPUQuota > 0 {
+				cpu = &specs.LinuxCPU{
+					Period: &tt.workloadCPUPeriod,
+					Quota:  &tt.workloadCPUQuota,
+				}
+			}
+
+			contConfig := ContainerConfig{
+				ID: "cont-00001",
+				Resources: specs.LinuxResources{
+					Memory: memory,
+					CPU:    cpu,
+				},
+			}
+
+			s := &Sandbox{
+				config: &SandboxConfig{
+					StaticResourceMgmt: true,
+					Containers:         []ContainerConfig{contConfig},
+					HypervisorConfig:   hConfig,
+				},
+				hypervisor: &mockHypervisor{config: hConfig},
+				agent:      &mockAgent{},
+			}
+
+			err := s.updateResources(context.Background())
+			assert.NoError(t, err)
+			assert.Equal(t, s.hypervisor.HypervisorConfig().MemSlots, uint32(0))
+			assert.Equal(t, s.hypervisor.HypervisorConfig().MemorySize, tt.expectedMemorySize)
+			assert.Equal(t, s.hypervisor.HypervisorConfig().NumVCPUsF, tt.expectedCPUs)
+		})
+	}
+}
+
 func TestSandboxExperimentalFeature(t *testing.T) {
 	testFeature := exp.Feature{
 		Name:        "mock",

@@ -1271,8 +1271,12 @@ func SandboxConfig(ocispec specs.Spec, runtime RuntimeConfig, bundlePath, cid st
 		sandboxConfig.SandboxResources.BaseCPUs = sandboxConfig.HypervisorConfig.NumVCPUsF
 		sandboxConfig.SandboxResources.BaseMemMB = sandboxConfig.HypervisorConfig.MemorySize
 
-		sandboxConfig.HypervisorConfig.NumVCPUsF += sandboxConfig.SandboxResources.WorkloadCPUs
-		sandboxConfig.HypervisorConfig.MemorySize += sandboxConfig.SandboxResources.WorkloadMemMB
+		if sandboxConfig.SandboxResources.WorkloadCPUs > sandboxConfig.SandboxResources.BaseCPUs {
+			sandboxConfig.HypervisorConfig.NumVCPUsF = sandboxConfig.SandboxResources.WorkloadCPUs
+		}
+		if sandboxConfig.SandboxResources.WorkloadMemMB > sandboxConfig.SandboxResources.BaseMemMB {
+			sandboxConfig.HypervisorConfig.MemorySize = sandboxConfig.SandboxResources.WorkloadMemMB
+		}
 
 		sandboxConfig.HypervisorConfig.DefaultMaxVCPUs = sandboxConfig.HypervisorConfig.NumVCPUs()
 
