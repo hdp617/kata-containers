@@ -117,6 +117,7 @@ RUNTIME_CHOICE="${RUNTIME_CHOICE:-both}"
 IMAGE_SIZE_ALIGNMENT_MB=${IMAGE_SIZE_ALIGNMENT_MB:-}
 KERNEL_DEBUG_ENABLED="${KERNEL_DEBUG_ENABLED:-}"
 INIT_DATA="${INIT_DATA:-yes}"
+HYPERVISORS="${HYPERVISORS:-}"
 
 docker run \
 	-v "${HOME}"/.docker:/root/.docker \
@@ -164,6 +165,7 @@ docker run \
 	--env CROSS_BUILD="${CROSS_BUILD}" \
 	--env TARGET_ARCH="${TARGET_ARCH}" \
 	--env ARCH="${ARCH}" \
+	--env HYPERVISORS="${HYPERVISORS}" \
 	--rm \
 	-w "${script_dir}" \
 	build-kata-deploy "${kata_deploy_create}" "$@"

@@ -17,6 +17,29 @@ ifeq ($(CROSS_BUILD),false)
 	ARCH := $(shell uname -m)
 endif
 
+ifeq ($(HYPERVISORS),clh)
+ifeq ($(ARCH), x86_64)
+BASE_TARBALLS = serial-targets \
+	kernel-tarball \
+	shim-v2-tarball \
+	virtiofsd-tarball
+BASE_SERIAL_TARBALLS = rootfs-image-tarball \
+	rootfs-initrd-tarball \
+	cloud-hypervisor-tarball \
+	cloud-hypervisor-glibc-tarball
+else ifeq ($(ARCH), aarch64)
+BASE_TARBALLS = serial-targets \
+	kernel-tarball \
+	shim-v2-tarball \
+	virtiofsd-tarball
+BASE_SERIAL_TARBALLS = rootfs-image-tarball \
+	rootfs-initrd-tarball \
+	cloud-hypervisor-tarball \
+	cloud-hypervisor-glibc-tarball
+else
+$(error clh hypervisor is not supported on $(ARCH))
+endif
+else
 ifeq ($(ARCH), x86_64)
 BASE_TARBALLS = serial-targets \
 	firecracker-tarball \
@@ -64,6 +87,7 @@ BASE_SERIAL_TARBALLS = rootfs-image-tarball \
 	rootfs-cca-confidential-image-tarball \
 	rootfs-cca-confidential-initrd-tarball \
 	rootfs-initrd-tarball
+endif
 endif
 
 define BUILD

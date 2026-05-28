@@ -1,17 +1,27 @@
 steps:
   # Step 1: Install dependencies and build the static Kata artifacts payload
-  - name: 'ubuntu:22.04'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:stable'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        apt-get update && apt-get install -y make curl git docker.io sudo zstd
+        apt-get update && apt-get install -y make docker.io zstd
         cd tools/packaging/kata-deploy/local-build
+        
+        # Get GCP access token for ORAS registry caching
+        export ARTEFACT_REGISTRY_PASSWORD=$(gcloud auth print-access-token)
+        
         # Run make to generate all static binaries and merge them into kata-static.tar.zst
         make kata-tarball
     env:
       - 'USER=root' # Required by kata-deploy-binaries-in-docker.sh
       - 'DOCKER_API_VERSION=1.41' # Compatibility with Cloud Build Docker daemon
+      - 'HYPERVISORS=clh'
+      - 'ARTEFACT_REGISTRY=us-west1-docker.pkg.dev'
+      - 'ARTEFACT_REPOSITORY=$PROJECT_ID/kata-containers'
+      - 'ARTEFACT_REGISTRY_USERNAME=oauth2accesstoken'
+      - 'PUSH_TO_REGISTRY=yes'
+      - 'USE_CACHE=yes'
 
   # Step 2: Stage the payload and build the kata-deploy Docker image
   - name: 'gcr.io/cloud-builders/docker'
@@ -22,20 +32,28 @@ steps:
         # Stage the built payload to where the Dockerfile expects it
         cp tools/packaging/kata-deploy/local-build/kata-static.tar.zst tools/packaging/kata-deploy/kata-static.tar.zst
         
-        # Build the Docker image using Buildx from the repository root
+        # Create a custom buildx builder using the docker-container driver to support cache export
+        docker buildx create --use --driver docker-container --name container-builder
+        
+        # Build the Docker image using Buildx from the repository root with layer caching
         docker buildx build \
+          --push \
           --platform linux/amd64 \
           --provenance false --sbom false \
+          --cache-from=type=registry,ref=us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:buildcache \
+          --cache-to=type=registry,ref=us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:buildcache,mode=max \
           -f tools/packaging/kata-deploy/Dockerfile \
           -t us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:$BUILD_ID \
           -t us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:latest \
           .
 
-# Automatically push images to GCP Artifact Registry
-images:
-  - 'us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:$BUILD_ID'
-  - 'us-west1-docker.pkg.dev/$PROJECT_ID/kata-containers/kata-deploy:latest'
+
+    env:
+      - 'DOCKER_API_VERSION=1.41'
+
+
 
 options:
   # Compiling Linux kernel, QEMU, and Rust binaries requires significant compute resources
   machineType: 'E2_HIGHCPU_32'
+

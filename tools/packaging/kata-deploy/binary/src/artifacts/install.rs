@@ -600,12 +600,11 @@ async fn configure_shim_config(config: &Config, shim: &str, container_runtime: &
 
     // The configuration file should exist after setup_runtime_directory()
     if !kata_config_file.exists() {
-        return Err(anyhow::anyhow!(
-            "Configuration file not found: {kata_config_file:?}. This file should have been \
-             copied from the original config. Check that the shim '{}' has a valid configuration \
-             file in the artifacts.",
+        info!(
+            "Configuration file not found for shim '{}'. Skipping configuration since this shim is likely not installed in the payload.",
             shim
-        ));
+        );
+        return Ok(());
     }
 
     // Generate common drop-in files (shared with custom runtimes)
